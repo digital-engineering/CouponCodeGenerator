@@ -106,13 +106,19 @@ class CouponCodeGenerator
      * @param int    $qtyToGenerate Quantity of invite codes to generate
      * @param float  $discount Discount percentage expressed as decimal, e.g. 0.50 for 50%
      * @param string $output Output type to generate (write file or db)
+     * @param string $filename
      */
-    public function generateCouponCodes($qtyToGenerate, $discount, $output = 'file')
+    public function generateCouponCodes($qtyToGenerate, $discount, $output = 'file', $filename = 'new-codes.csv')
     {
         $this->output = $output;
         $this->qtyToGenerate = $qtyToGenerate;
         $this->init();
-        $qtyCodes = $this->createInvitations($discount);
+
+        if ($output === 'file') {
+            $qtyCodes = $this->createInvitations($discount, $filename);
+        } else {
+            $qtyCodes = $this->createInvitations($discount);
+        }
 
         $sparsity = (1 - ($qtyCodes / $this->qtyPermutations)) * 100;
         printf(
@@ -201,11 +207,12 @@ class CouponCodeGenerator
 
     /**
      *
-     * @param float $discount
+     * @param float  $discount
+     * @param string $filename
      *
      * @return int
      */
-    private function createInvitations($discount)
+    private function createInvitations($discount, $filename = null)
     {
         $codes = [];
         $qtyCodes = 0;
@@ -222,7 +229,7 @@ class CouponCodeGenerator
             $qtyCodes++;
         }
         if ($this->output === 'file') {
-            $this->writeFile($codes);
+            $this->writeFile($codes, $filename);
         } else { // write db
             // write db, e.g. $this->entityManager->flush();
         }
@@ -318,17 +325,20 @@ class CouponCodeGenerator
         //    },
         //    $existingCoupons
         //);
+        $this->existingCodes = explode("\n", file_get_contents('existing-codes.csv'));
     }
 
     /**
+     * Shuffles the array of codes and writes them to a CSV file (one per line).
      *
-     * @param array $codes
+     * @param array  $codes
+     * @param string $filename
      */
-    private function writeFile(array $codes)
+    private function writeFile(array $codes, $filename)
     {
         shuffle($codes);
         file_put_contents(
-            'new-codes.csv',
+            $filename,
             array_reduce(
                 $codes,
                 function ($carry, $item) {
@@ -342,4 +352,9 @@ class CouponCodeGenerator
 }
 
 $ccg = new CouponCodeGenerator();
-$ccg->generateCouponCodes(1000, 0.65);
+foreach ([5 => 100, 25 => 30, 35 => 250] as $qtyGroups => $qtyToGenerate) {
+    for ($i = 1; $i <= $qtyGroups; $i++) {
+        $filename = sprintf('Group_%s_%s.csv', $qtyToGenerate, $i);
+        $ccg->generateCouponCodes($qtyToGenerate, 0.65, 'file', $filename);
+    }
+}
