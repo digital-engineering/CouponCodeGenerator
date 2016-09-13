@@ -25,8 +25,9 @@ namespace bashedev\CouponCodeGenerator;
 class CouponCodeGenerator
 {
 
-    const COUPON_CODE_LENGTH = 10;
-
+    const COUPON_CODE_LENGTH = 9;  // not including spacer
+    const COUPON_CODE_GROUP_SIZE = 3;
+    const COUPON_CODE_SPACER = '-';
     /**
      *
      * @var array All possible characters to be used in each position of access code
@@ -104,11 +105,11 @@ class CouponCodeGenerator
      * Top level function to generate invite codes
      *
      * @param int    $qtyToGenerate Quantity of invite codes to generate
-     * @param float  $discount Discount percentage expressed as decimal, e.g. 0.50 for 50%
      * @param string $output Output type to generate (write file or db)
      * @param string $filename
+     * @param float  $discount Discount percentage expressed as decimal, e.g. 0.50 for 50%
      */
-    public function generateCouponCodes($qtyToGenerate, $discount, $output = 'file', $filename = 'new-codes.csv')
+    public function generateCouponCodes($qtyToGenerate, $output = 'file', $filename = 'new-codes.csv', $discount = null)
     {
         $this->output = $output;
         $this->qtyToGenerate = $qtyToGenerate;
@@ -132,12 +133,18 @@ class CouponCodeGenerator
     /**
      *
      * @param array $increment
+     *
+     * @throws \Exception
      */
     private function addIncrement($increment)
     {
         $carry = false;
         foreach ($increment as $exponent => $multiplier) {
-            $currentValue = $this->positionCounter[$exponent];
+            if (array_key_exists($exponent, $this->positionCounter)) {
+                $currentValue = $this->positionCounter[$exponent];
+            } else {
+                throw new \Exception("Exponent ($exponent) doesn't exist: \n".print_r($this->positionCounter, true));
+            }
             if ($carry === false) {
                 $sum = $currentValue + $multiplier;
             } else {
@@ -212,7 +219,7 @@ class CouponCodeGenerator
      *
      * @return int
      */
-    private function createInvitations($discount, $filename = null)
+    private function createInvitations($discount = null, $filename = null)
     {
         $codes = [];
         $qtyCodes = 0;
@@ -230,6 +237,7 @@ class CouponCodeGenerator
         }
         if ($this->output === 'file') {
             $this->writeFile($codes, $filename);
+            $this->existingCodes = array_merge($this->existingCodes, $codes);
         } else { // write db
             // write db, e.g. $this->entityManager->flush();
         }
@@ -251,6 +259,16 @@ class CouponCodeGenerator
     }
 
     /**
+     * @param string $permutation
+     *
+     * @return string
+     */
+    private function formatPermutation($permutation)
+    {
+        return implode(self::COUPON_CODE_SPACER, str_split($permutation, self::COUPON_CODE_GROUP_SIZE));
+    }
+
+    /**
      * Increment the positional counter (i.e. $this->pos) and get a single code.
      *
      * @return string Coupon code
@@ -259,7 +277,9 @@ class CouponCodeGenerator
     {
         $this->incrementPermutationCounterRandomly();
 
-        return $this->getCurrentPermutation();
+        $permutation = $this->getCurrentPermutation();
+
+        return $this->formatPermutation($permutation);
     }
 
     /**
@@ -301,7 +321,7 @@ class CouponCodeGenerator
         $this->maxDigitValue = $this->characterSetLength - 1;
         $this->qtyDigits = self::COUPON_CODE_LENGTH;
         $this->qtyPermutations = pow($this->characterSetLength, $this->qtyDigits);
-        $this->maxIncrement = round($this->qtyPermutations / $this->qtyToGenerate) * 100;
+        $this->maxIncrement = round($this->qtyPermutations / $this->qtyToGenerate);
         $this->positionCounter = array_fill(0, $this->qtyDigits, 0);
         // find max power
         while (pow($this->characterSetLength, $this->maxExponent) < $this->maxIncrement) {
@@ -325,7 +345,11 @@ class CouponCodeGenerator
         //    },
         //    $existingCoupons
         //);
-        $this->existingCodes = explode("\n", file_get_contents('existing-codes.csv'));
+
+        $filename = 'existing-codes.csv';
+        if (file_exists($filename)) {
+            $this->existingCodes = explode("\n", file_get_contents($filename));
+        }
     }
 
     /**
@@ -352,9 +376,5 @@ class CouponCodeGenerator
 }
 
 $ccg = new CouponCodeGenerator();
-foreach ([5 => 100, 25 => 30, 35 => 250] as $qtyGroups => $qtyToGenerate) {
-    for ($i = 1; $i <= $qtyGroups; $i++) {
-        $filename = sprintf('Group_%s_%s.csv', $qtyToGenerate, $i);
-        $ccg->generateCouponCodes($qtyToGenerate, 0.65, 'file', $filename);
-    }
-}
+$filename = 'coupon_codes/codes.csv';
+$ccg->generateCouponCodes(1000, 'file', $filename);
