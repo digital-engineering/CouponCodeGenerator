@@ -25,7 +25,7 @@ namespace bashedev\CouponCodeGenerator;
 class CouponCodeGenerator
 {
 
-    const COUPON_CODE_LENGTH = 9;  // not including spacer
+    const COUPON_CODE_LENGTH = 9;  // not including spacer(s)
     const COUPON_CODE_GROUP_SIZE = 3;
     const COUPON_CODE_SPACER = '-';
     /**
@@ -38,7 +38,7 @@ class CouponCodeGenerator
      *
      * @var int Variable to store the character set length
      */
-    private $characterSetLength = 0;
+    private $characterSetCount = 0;
 
     /**
      *
@@ -152,11 +152,11 @@ class CouponCodeGenerator
                 $carry = false;
             }
 
-            if ($sum < $this->characterSetLength) {
+            if ($sum < $this->characterSetCount) {
                 // fits in bounds, continue adding the next digit
                 $this->positionCounter[$exponent] = $sum;
             } else { // carry
-                $sum -= $this->characterSetLength;
+                $sum -= $this->characterSetCount;
                 $carry = 1;
                 $this->positionCounter[$exponent] = $sum;
             }
@@ -176,7 +176,7 @@ class CouponCodeGenerator
         $converted = array_fill(0, $power, 0);
         $carry = $number;
         while ($carry > 0 && $power >= 0) {
-            $multiplier = pow($this->characterSetLength, $power);
+            $multiplier = pow($this->characterSetCount, $power);
             for ($ordinal = $this->maxDigitValue; $ordinal > 0; $ordinal--) {
                 $difference = $carry - ($ordinal * $multiplier);
                 if ($difference < 0) { // took too much, try a lower ordinal
@@ -317,14 +317,14 @@ class CouponCodeGenerator
     {
         // define alphanumeric character set, minus easily confusable letters and numbers (0, 1, I, O)
         $this->characterSet = array_merge(range('A', 'H'), range('J', 'N'), range('P', 'Z'), range(2, 9));
-        $this->characterSetLength = count($this->characterSet);
-        $this->maxDigitValue = $this->characterSetLength - 1;
+        $this->characterSetCount = count($this->characterSet);
+        // 0-indexed, so 0 = A, 1 = B, ... where the numbers are indexes and letters are members of $this->characterSet
+        $this->maxDigitValue = $this->characterSetCount - 1;
         $this->qtyDigits = self::COUPON_CODE_LENGTH;
-        $this->qtyPermutations = pow($this->characterSetLength, $this->qtyDigits);
-        $this->maxIncrement = round($this->qtyPermutations / $this->qtyToGenerate);
+        $this->qtyPermutations = pow($this->characterSetCount, $this->qtyDigits); // (qty_chars)^(qty_digits)
+        $this->maxIncrement = round($this->qtyPermutations / pow($this->qtyToGenerate, 0.25));
         $this->positionCounter = array_fill(0, $this->qtyDigits, 0);
-        // find max power
-        while (pow($this->characterSetLength, $this->maxExponent) < $this->maxIncrement) {
+        while (pow($this->characterSetCount, $this->maxExponent) < $this->maxIncrement) {
             $this->maxExponent++;
         }
         $this->createRandomCharacterSets();
